@@ -8,4 +8,5 @@
 /vendor/
 config/jwt/private.pem
 config/jwt/public.pem
+/.env
 ###< symfony/framework-bundle ###
