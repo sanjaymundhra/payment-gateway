@@ -11,7 +11,6 @@ use App\DataFixtures\UserFixture;
 
 class AccountFixture extends Fixture implements DependentFixtureInterface
 {
-
     public function getDependencies(): array
     {
         return [
@@ -21,20 +20,21 @@ class AccountFixture extends Fixture implements DependentFixtureInterface
 
     public function load(ObjectManager $manager): void 
     {
+        // Get users from references
+        /** @var User $user1 */
         $user1 = $this->getReference('user1', User::class);
+        /** @var User $user2 */
         $user2 = $this->getReference('user2', User::class);
 
-        $account1 = new Account($user1, $user1->getEmail(), 'USD');
-        $account1->setBalance(1000);
-        $account1->setOwnerName($user1->getEmail());
-        $account1->setCurrency('USD');
+        // Create first account
+        $account1 = new Account($user1, 'USD'); // currency = USD
+        $account1->setBalance('1000.0000'); // string with decimals
         $manager->persist($account1);
         $this->addReference('user1_account', $account1); 
 
-        $account2 = new Account($user2, $user2->getEmail(), 'USD');
-        $account2->setBalance(500);
-        $account2->setOwnerName($user2->getEmail());
-        $account2->setCurrency('USD');
+        // Create second account
+        $account2 = new Account($user2, 'USD');
+        $account2->setBalance('500.0000');
         $manager->persist($account2);
         $this->addReference('user2_account', $account2);
 

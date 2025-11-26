@@ -28,7 +28,7 @@ final class Version20251123104500CreateAccounts extends AbstractMigration
             UNIQUE (uuid),
             INDEX IDX_ACCOUNT_HOLDER (account_holder_id),
             CONSTRAINT FK_ACCOUNT_HOLDER FOREIGN KEY (account_holder_id)
-                REFERENCES account_users (id)
+                REFERENCES users (id)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
     }
 

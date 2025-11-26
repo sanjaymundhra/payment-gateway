@@ -1,10 +1,12 @@
 <?php
 namespace App\Entity;
+use Symfony\Component\Uid\Uuid;
 
 use Doctrine\ORM\Mapping as ORM;
+use App\Repository\AccountRepository;
 
-#[ORM\Entity]
 #[ORM\Table(name: 'accounts')]
+#[ORM\Entity(repositoryClass: AccountRepository::class)]
 class Account
 {
     #[ORM\Id]
@@ -12,11 +14,13 @@ class Account
     #[ORM\Column(type: 'bigint')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: User::class)]
-    private ?User $user = null;
+     #[ORM\Column(type: 'string', length: 36, unique: true)]
+    private string $uuid;
 
-    #[ORM\Column(type: 'string', length: 255)]
-    private string $ownerName;
+    // Updated property name and join column
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'account_holder_id', referencedColumnName: 'id', nullable: false)]
+    private ?User $user = null;
 
     #[ORM\Column(type: 'decimal', precision: 20, scale: 4)]
     private string $balance = '0.0000';
@@ -27,17 +31,15 @@ class Account
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct(User $user, string $ownerName, string $currency = 'INR')
+    public function __construct(User $user, string $currency = 'INR')
     {
+        $this->uuid = Uuid::v4()->toRfc4122();
         $this->user = $user;
-        $this->ownerName = $ownerName;
         $this->currency = strtoupper($currency);
         $this->createdAt = new \DateTimeImmutable();
     }
 
     public function getId(): ?int { return $this->id; }
-    public function getOwnerName(): string { return $this->ownerName; }
-    public function setOwnerName(string $name): self { $this->ownerName = $name; return $this; }
 
     public function getBalance(): string { return $this->balance; }
     public function setBalance(string $balance): self { $this->balance = $balance; return $this; }

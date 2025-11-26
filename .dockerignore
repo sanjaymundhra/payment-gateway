@@ -1,7 +1,36 @@
-vendor
-var/cache
-var/log
-node_modules
-.git
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files
+.dockerignore
+Dockerfile
+docker-compose.yml
+docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Symfony var directory (will be recreated)
+/var/
+
+# Dependencies (will be installed via composer during build)
+/vendor/
+
+# Environment files
 .env.local
 .env.*.local
+
+# Node (if you use it)
+node_modules/
+
+# Logs and temp files
+*.log

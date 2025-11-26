@@ -20,8 +20,8 @@ final class Version20251123104700CreateTransactions extends AbstractMigration
         $this->addSql('CREATE TABLE transactions (
             id BIGINT AUTO_INCREMENT NOT NULL,
             uuid VARCHAR(36) NOT NULL,
-            from_account_uuid CHAR(36) NOT NULL,
-            to_account_uuid CHAR(36) NOT NULL,
+            from_account_id BIGINT NOT NULL,
+            to_account_id BIGINT NOT NULL,
             amount NUMERIC(20,4) NOT NULL,
             currency VARCHAR(3) NOT NULL,
             status VARCHAR(20) NOT NULL,
@@ -31,8 +31,8 @@ final class Version20251123104700CreateTransactions extends AbstractMigration
             PRIMARY KEY(id)
         ) DEFAULT CHARACTER SET utf8mb4 COLLATE `utf8mb4_unicode_ci` ENGINE = InnoDB');
 
-        $this->addSql('ALTER TABLE transactions ADD CONSTRAINT FK_FROM_ACCOUNT FOREIGN KEY (from_account_uuid) REFERENCES accounts (uuid)');
-        $this->addSql('ALTER TABLE transactions ADD CONSTRAINT FK_TO_ACCOUNT FOREIGN KEY (to_account_uuid) REFERENCES accounts (uuid)');
+        $this->addSql('ALTER TABLE transactions ADD CONSTRAINT FK_FROM_ACCOUNT FOREIGN KEY (from_account_id) REFERENCES accounts (id)');
+        $this->addSql('ALTER TABLE transactions ADD CONSTRAINT FK_TO_ACCOUNT FOREIGN KEY (to_account_id) REFERENCES accounts (id)');
     }
 
     public function down(Schema $schema): void

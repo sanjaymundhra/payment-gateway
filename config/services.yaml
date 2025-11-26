@@ -32,10 +32,10 @@ services:
         resource: '../src/DataFixtures'
         tags: ['doctrine.fixture.orm']
 
-    # add more service definitions when explicit configuration is needed
+    App\Controller\Api\AuthController:
+        arguments:
+            $tokenExtractor: '@lexik_jwt_authentication.extractor.chain_extractor'
+
+     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
-    # alias the user provider interface to your configured entity provider
-    Symfony\Component\Security\Core\User\UserProviderInterface:
-        alias: 'security.user.provider.concrete.app_user_provider'
-        public: false

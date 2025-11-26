@@ -3,15 +3,17 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\UserInterface;
+use App\Repository\UserRepository;
+use Symfony\Component\Serializer\Annotation\Groups;
 
-#[ORM\Entity]
 #[ORM\Table(name: 'users')]
+#[ORM\Entity(repositoryClass: UserRepository::class)]
 class User implements UserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column(type: 'integer')]
-    private int $id;
+    #[ORM\Column(type: 'bigint', options: ['unsigned' => true])]
+    private ?int $id = null;
 
     #[ORM\Column(type: 'string', unique: true)]
     private string $email;
@@ -29,4 +31,12 @@ class User implements UserInterface
     public function getSalt(): ?string { return null; }
     public function eraseCredentials(): void {}
     public function getUsername(): string { return $this->email; }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'email' => $this->email,
+        ];
+    }
 }
