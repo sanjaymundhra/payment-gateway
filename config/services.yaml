@@ -20,5 +20,22 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
+    Predis\Client:
+        class: Predis\Client
+        arguments: ['%env(REDIS_URL)%']
+
+    App\Service\TransactionService:
+        arguments:
+            $redis: '@Predis\Client'
+
+    App\DataFixtures\:
+        resource: '../src/DataFixtures'
+        tags: ['doctrine.fixture.orm']
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    # alias the user provider interface to your configured entity provider
+    Symfony\Component\Security\Core\User\UserProviderInterface:
+        alias: 'security.user.provider.concrete.app_user_provider'
+        public: false
