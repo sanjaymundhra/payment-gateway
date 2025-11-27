@@ -11,7 +11,7 @@ class Account
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column(type: 'bigint')]
+    #[ORM\Column(type: 'bigint', options: ['unsigned' => true])]
     private ?int $id = null;
 
      #[ORM\Column(type: 'string', length: 36, unique: true)]
@@ -19,7 +19,7 @@ class Account
 
     // Updated property name and join column
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[ORM\JoinColumn(name: 'account_holder_id', referencedColumnName: 'id', nullable: false)]
+    #[ORM\JoinColumn(name: 'account_holder_id', referencedColumnName: 'id', nullable: false, options: ['unsigned' => true])]
     private ?User $user = null;
 
     #[ORM\Column(type: 'decimal', precision: 20, scale: 4)]

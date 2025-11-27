@@ -1,122 +1,122 @@
 <?php
 namespace App\Service;
 
-use Doctrine\ORM\EntityManagerInterface;
-use Psr\Log\LoggerInterface;
-use Ramsey\Uuid\Uuid;
+use App\Entity\Account;
 use App\Entity\Transaction;
+use App\Entity\IdempotencyKey;
+use App\Entity\FailedTransaction;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Uid\Uuid;
+use Predis\Client;
 
 class TransactionService
 {
+    private Client $redis;
     private EntityManagerInterface $em;
-    private LoggerInterface $logger;
-    private $redis;
+    private int $scale = 4;
 
-    public function __construct(EntityManagerInterface $em, LoggerInterface $logger, $redis)
+    public function __construct(Client $redis,EntityManagerInterface $em)
     {
-        $this->em = $em;
-        $this->logger = $logger;
         $this->redis = $redis;
+        $this->em = $em;
     }
 
     /**
-     * Execute a transfer.
+     * Perform a transfer: debit fromAccount, credit toAccount.
      *
-     * @param int $fromAccountId
-     * @param int $toAccountId
-     * @param string $amount decimal string
-     * @param string $currency 3-letter code
-     * @param string|null $idempotencyKey
-     * @return array ['status' => 'completed'|'failed', 'uuid'=>string]
-     * @throws \Throwable
+     * Returns ['status' => 'ok', 'uuid' => '<uuid>'] on success.
+     * Throws RuntimeException on business rules violation.
      */
-    public function transfer(int $fromAccountId, int $toAccountId, string $amount, string $currency, ?string $idempotencyKey = null): array
-    {
-        if (bccomp($amount, '0', 4) <= 0) {
-            throw new \InvalidArgumentException('Amount must be positive');
+    public function transfer(
+        int $fromAccountId,
+        int $toAccountId,
+        string $amount,
+        string $currency,
+        ?string $idempotencyKey = null
+    ): array {
+        if (bccomp($amount, '0', $this->scale) <= 0) {
+            throw new \RuntimeException('amount_must_be_positive');
+        }
+        if ($fromAccountId === $toAccountId) {
+            throw new \RuntimeException('cannot_transfer_to_same_account');
         }
 
-        // Idempotency: check existing transfer by key
         if ($idempotencyKey) {
-            $existing = $this->em->getRepository(Transaction::class)->findOneBy(['idempotencyKey' => $idempotencyKey]);
-            if ($existing) {
-                return ['status' => $existing->getStatus(), 'uuid' => $existing->getUuid()];
+            $repo = $this->em->getRepository(IdempotencyKey::class);
+            if ($existing = $repo->find($idempotencyKey)) {
+                return json_decode($existing->getResponse(), true);
             }
         }
 
-        // Optional redis lock to avoid concurrent work across nodes
-        $lockKey = 'transfer_lock:' . $fromAccountId;
-        $acquired = false;
-        try {
-            // Predis set with NX & EX or php-redis equivalent
-            $acquired = (bool) $this->redis->set($lockKey, 1, ['nx' => true, 'ex' => 10]);
-        } catch (\Throwable $e) {
-            $this->logger->warning('Redis lock unavailable: ' . $e->getMessage());
-            // continue; DB locking still protects correctness
+        $lockKey = "transfer_lock:{$fromAccountId}:{$toAccountId}";
+        if (!$this->redis->set($lockKey, "1", 'NX', 'EX', 5)) {
+            throw new \RuntimeException('transfer_in_progress');
         }
 
         try {
-            $conn = $this->em->getConnection();
-            $result = $conn->transactional(function($conn) use ($fromAccountId, $toAccountId, $amount, $currency, $idempotencyKey) {
-                // SELECT FOR UPDATE ensures row-level lock
-                $from = $conn->fetchAssociative('SELECT * FROM accounts WHERE id = ? FOR UPDATE', [$fromAccountId]);
-                if (!$from) throw new \RuntimeException('From account not found');
+            $result = $this->em->transactional(function(EntityManagerInterface $em) 
+                use ($fromAccountId, $toAccountId, $amount, $currency, $idempotencyKey) 
+            {
+                $from = $em->find(Account::class, $fromAccountId, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+                $to   = $em->find(Account::class, $toAccountId,   \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
 
-                $to = $conn->fetchAssociative('SELECT * FROM accounts WHERE id = ? FOR UPDATE', [$toAccountId]);
-                if (!$to) throw new \RuntimeException('To account not found');
-
-                if ($from['currency'] !== strtoupper($currency) || $to['currency'] !== strtoupper($currency)) {
-                    throw new \RuntimeException('Currency mismatch');
+                if (!$from || !$to) {
+                    throw new \RuntimeException('account_not_found');
                 }
 
-                if (bccomp($from['balance'], $amount, 4) < 0) {
-                    throw new \RuntimeException('Insufficient funds');
+                if (
+                    $from->getCurrency() !== $currency ||
+                    $to->getCurrency() !== $currency
+                ) {
+                    throw new \RuntimeException('currency_mismatch');
                 }
 
-                $newFrom = bcsub($from['balance'], $amount, 4);
-                $newTo = bcadd($to['balance'], $amount, 4);
+                if (bccomp($from->getBalance(), $amount, $this->scale) < 0) {
+                    throw new \RuntimeException('insufficient_balance');
+                }
 
-                $conn->update('accounts', ['balance' => $newFrom], ['id' => $fromAccountId]);
-                $conn->update('accounts', ['balance' => $newTo], ['id' => $toAccountId]);
+                $from->setBalance(bcsub($from->getBalance(), $amount, $this->scale));
+                $to->setBalance(bcadd($to->getBalance(), $amount, $this->scale));
 
-                $uuid = Uuid::uuid4()->toString();
-                $conn->insert('transactions', [
-                    'uuid' => $uuid,
-                    'from_account_id' => $fromAccountId,
-                    'to_account_id' => $toAccountId,
+                $debit  = new Transaction($from, Transaction::TYPE_DEBIT,  $amount, $currency);
+                $credit = new Transaction($to,   Transaction::TYPE_CREDIT, $amount, $currency);
+
+                $em->persist($debit);
+                $em->persist($credit);
+
+                $response = [
+                    'status' => 'ok',
+                    'uuid'   => $debit->getUuid(),
                     'amount' => $amount,
-                    'currency' => strtoupper($currency),
-                    'status' => 'completed',
-                    'idempotency_key' => $idempotencyKey,
-                ]);
+                    'currency' => $currency
+                ];
 
-                return ['uuid' => $uuid, 'status' => 'completed'];
+                if ($idempotencyKey) {
+                    $ik = new IdempotencyKey($idempotencyKey, json_encode($response));
+                    $em->persist($ik);
+                }
+
+                return $response;
             });
 
-            $this->logger->info('Transfer successful', ['from' => $fromAccountId, 'to' => $toAccountId, 'amount' => $amount, 'uuid' => $result['uuid']]);
             return $result;
+
         } catch (\Throwable $e) {
-            $this->logger->error('Transfer failed', ['ex' => $e->getMessage(), 'from' => $fromAccountId, 'to' => $toAccountId, 'amount' => $amount]);
-            // Also persist a failed transfer row for audit (optional)
-            try {
-                $uuid = Uuid::uuid4()->toString();
-                $this->em->getConnection()->insert('transactions', [
-                    'uuid' => $uuid,
-                    'from_account_id' => $fromAccountId,
-                    'to_account_id' => $toAccountId,
-                    'amount' => $amount,
-                    'currency' => strtoupper($currency),
-                    'status' => 'failed',
-                    'idempotency_key' => $idempotencyKey,
-                ]);
-            } catch (\Throwable) {
-                // ignore second-level failures
-            }
+
+            $failed = new FailedTransaction(
+                $fromAccountId,
+                $toAccountId,
+                $amount,
+                $e->getMessage()
+            );
+            $this->em->persist($failed);
+            $this->em->flush();
+
             throw $e;
+
         } finally {
-            if ($acquired) {
-                try { $this->redis->del($lockKey); } catch (\Throwable) {}
-            }
+            $this->redis->del($lockKey);
         }
     }
+
 }
