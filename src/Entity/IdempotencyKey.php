@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 class IdempotencyKey
 {
     #[ORM\Id]
-    #[ORM\Column(type: 'string', length: 255)]
+    #[ORM\Column(name: "idempotency_key", type: 'string', length: 255, unique: true)]
     private string $key;
 
     #[ORM\Column(type: 'text')]

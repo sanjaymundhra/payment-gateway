@@ -90,7 +90,6 @@ class TransactionService
                     'amount' => $amount,
                     'currency' => $currency
                 ];
-
                 if ($idempotencyKey) {
                     $ik = new IdempotencyKey($idempotencyKey, json_encode($response));
                     $em->persist($ik);
@@ -103,14 +102,12 @@ class TransactionService
 
         } catch (\Throwable $e) {
 
-            $failed = new FailedTransaction(
-                $fromAccountId,
-                $toAccountId,
-                $amount,
-                $e->getMessage()
-            );
-            $this->em->persist($failed);
-            $this->em->flush();
+            $conn = $this->em->getConnection();
+            $conn->insert('failed_transactions', [
+                'original_transaction_id'   => null,
+                'error_message'    => $e->getMessage(),
+                'failed_at'        => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+            ]);
 
             throw $e;
 
