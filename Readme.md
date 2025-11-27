@@ -1,217 +1,141 @@
-🚀 Payment Gateway API (Symfony + Doctrine + JWT + Swagger)
+** Payment Gateway API (Symfony + Doctrine + JWT + Swagger)**
 
 A simple, modular payment gateway backend built with Symfony, featuring:
 
 ✅ User & Account Management
-✅ Transactions & Fund Transfers
-✅ JWT Authentication (Lexik JWT)
-✅ API Documentation (Swagger / NelmioApiDocBundle)
-✅ Docker-ready environment
+
+✅ Transactions & Fund Transfers 
+
+✅ JWT Authentication (Lexik JWT)  
+
+✅ API Documentation (Swagger / NelmioApiDocBundle) 
+
+✅ Docker-ready environment 
+
 ✅ Clean Domain Structure (Repositories, Controllers, Entities)
 
 📦 Installation
 
-Clone the repository:
+**Clone the repository:**
 
-git clone https://github.com/your/repo.git
-cd repo
+    git clone https://github.com/your/repo.git
+    cd repo
 
 
-Install dependencies:
+**Install dependencies:**
 
-composer install
+    composer install
 
 
-Copy environment file:
+**Copy environment file:**
 
-cp .env .env.local
+    cp .env .env.local
 
 
-Update your database credentials inside .env.local.
+**Update your database credentials inside .env.local.**
 
-Run migrations:
+**Run migrations:**
 
-php bin/console doctrine:migrations:migrate
+    php bin/console doctrine:migrations:migrate
 
 
-Load initial fixtures (optional):
+**Load initial fixtures (optional):**
 
-php bin/console doctrine:fixtures:load
+    php bin/console doctrine:fixtures:load
 
-🔐 JWT Authentication Setup (LexikJWTAuthenticationBundle)
-1️⃣ Install the bundle
-composer require lexik/jwt-authentication-bundle
 
-2️⃣ Generate your JWT keys
-mkdir -p config/jwt
-openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:4096
-openssl pkey -in config/jwt/private.pem -pubout -out config/jwt/public.pem
-chmod 600 config/jwt/private.pem
+**2️⃣ Generate your JWT keys**
+    mkdir -p config/jwt
+    openssl genpkey -algorithm RSA -out config/jwt/private.pem -pkeyopt rsa_keygen_bits:4096
+    openssl pkey -in config/jwt/private.pem -pubout -out config/jwt/public.pem
+    chmod 600 config/jwt/private.pem
 
-3️⃣ Add JWT passphrase to .env.local
-JWT_PASSPHRASE=your-passphrase
+**3️⃣ Add JWT passphrase to .env.local**
+    JWT_PASSPHRASE=your-passphrase
 
-4️⃣ Add bundle configuration
+**4️⃣ Add bundle configuration**
 
-config/packages/lexik_jwt_authentication.yaml:
+    config/packages/lexik_jwt_authentication.yaml:
 
-lexik_jwt_authentication:
-    private_key_path: '%kernel.project_dir%/config/jwt/private.pem'
-    public_key_path:  '%kernel.project_dir%/config/jwt/public.pem'
-    pass_phrase:      '%env(JWT_PASSPHRASE)%'
-    token_ttl:        3600
+**lexik_jwt_authentication:**
+        private_key_path: '%kernel.project_dir%/config/jwt/private.pem'
+        public_key_path:  '%kernel.project_dir%/config/jwt/public.pem'
+        pass_phrase:      '%env(JWT_PASSPHRASE)%'
+        token_ttl:        3600
 
-5️⃣ Update security.yaml
-security:
-    enable_authenticator_manager: true
+5️⃣ **Update security.yaml**
+    security:
+        enable_authenticator_manager: true
+    
+        providers:
+            app_user_provider:
+                entity:
+                    class: App\Entity\User
+                    property: email
+    
+        password_hashers:
+            App\Entity\User: 'auto'
+    
+        firewalls:
+            login:
+                pattern: ^/api/login
+                stateless: true
+                anonymous: true
+    
+            api_login_check:
+                pattern: ^/api/login_check
+                stateless: true
+                anonymous: true
+    
+            main:
+                pattern: ^/api
+                stateless: true
+                provider: app_user_provider
+                jwt: true
+    
+        access_control:
+            - { path: ^/api/login, roles: PUBLIC_ACCESS }
+            - { path: ^/api/login_check, roles: PUBLIC_ACCESS }
+            - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
-    providers:
-        app_user_provider:
-            entity:
-                class: App\Entity\User
-                property: email
+**6️⃣ Expose login route**
 
-    password_hashers:
-        App\Entity\User: 'auto'
+    config/routes/jwt.yaml:
 
-    firewalls:
-        login:
-            pattern: ^/api/login
-            stateless: true
-            anonymous: true
+    api_login_check:
+        path: /api/login_check
 
-        api_login_check:
-            pattern: ^/api/login_check
-            stateless: true
-            anonymous: true
+🔑** Using JWT Authentication**
+➤ **Login to obtain token**
+    curl -X POST http://127.0.0.1:8000/api/login_check \
+      -H "Content-Type: application/json" \
+      -d '{ "username": "admin@example.com", "password": "password123" }'
 
-        main:
-            pattern: ^/api
-            stateless: true
-            provider: app_user_provider
-            jwt: true
 
-    access_control:
-        - { path: ^/api/login, roles: PUBLIC_ACCESS }
-        - { path: ^/api/login_check, roles: PUBLIC_ACCESS }
-        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+**Response:**
 
-6️⃣ Expose login route
+    {
+      "token": "eyJ0eXAiOiJKV1QiLCJh..."
+    }
 
-config/routes/jwt.yaml:
+➤ **Use token for API requests**
+    curl http://127.0.0.1:8000/api/accounts \
+      -H "Authorization: Bearer YOUR_TOKEN_HERE"
 
-api_login_check:
-    path: /api/login_check
 
-🔑 Using JWT Authentication
-➤ Login to obtain token
-curl -X POST http://127.0.0.1:8000/api/login_check \
-  -H "Content-Type: application/json" \
-  -d '{ "username": "admin@example.com", "password": "password123" }'
+**▶ Running the App**
 
+**Start the local server:**
 
-Response:
+    php -S 127.0.0.1:8000 -t public
 
-{
-  "token": "eyJ0eXAiOiJKV1QiLCJh..."
-}
 
-➤ Use token for API requests
-curl http://127.0.0.1:8000/api/accounts \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
 
-📘 API Documentation (Swagger / Nelmio)
-1️⃣ Install NelmioApiDocBundle
-composer require nelmio/api-doc-bundle
+**Add to .env.local:**
 
-2️⃣ Add configuration
+    REDIS_URL=redis://127.0.0.1:6379
 
-config/packages/nelmio_api_doc.yaml:
 
-nelmio_api_doc:
-    documentation:
-        info:
-            title: 'Payment Gateway API'
-            description: 'Swagger API documentation'
-            version: '1.0.0'
+**Start Redis:**
 
-        components:
-            securitySchemes:
-                bearerAuth:
-                    type: http
-                    scheme: bearer
-                    bearerFormat: JWT
-
-    areas:
-        default:
-            path_patterns:
-                - ^/api
-
-3️⃣ Add routes
-
-config/routes/nelmio_api_doc.yaml:
-
-nelmio_api_doc:
-    resource: "@NelmioApiDocBundle/Resources/config/routing.yaml"
-    prefix: /api/doc
-
-📍 Access API documentation
-http://127.0.0.1:8000/api/doc
-
-
-You can authorize with JWT using the Authorize button.
-
-🧪 Example Annotated Controller (Swagger)
-/**
- * @OA\Get(
- *     path="/api/accounts",
- *     summary="Get all accounts",
- *     @OA\Response(response=200, description="Returns list of accounts"),
- *     security={{"bearerAuth": {}}}
- * )
- */
-public function list(AccountRepository $repo): JsonResponse
-{
-    ...
-}
-
-▶ Running the App
-
-Start the local server:
-
-php -S 127.0.0.1:8000 -t public
-
-
-Or:
-
-symfony serve -d
-
-♻ Troubleshooting
-❗ JWT login returns 401
-
-Ensure you're sending username (not email)
-
-Ensure user exists
-
-Ensure password is hashed
-
-❗ REDIS_URL missing
-
-Add to .env.local:
-
-REDIS_URL=redis://127.0.0.1:6379
-
-
-Or disable Redis in services.
-
-❗ Could not connect to Redis
-
-Start Redis:
-
-sudo systemctl start redis
-
-📄 License
-
-MIT
-
-If you want, I can also:
+    sudo systemctl start redis
